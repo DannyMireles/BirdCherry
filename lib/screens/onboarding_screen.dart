@@ -239,7 +239,7 @@ class _SignInSheetState extends State<_SignInSheet> {
 
     return Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
-      child: Padding(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(24, 16, 24, 28),
         child: Column(
           mainAxisSize: MainAxisSize.min,

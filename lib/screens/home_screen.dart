@@ -50,8 +50,13 @@ class HomeScreen extends StatelessWidget {
                       children: [
                         Text(greeting.toUpperCase(), style: text.labelSmall),
                         const SizedBox(height: 2),
-                        Text(app.me.name.split(' ').first,
-                            style: text.displayMedium),
+                        // Shrink-to-fit so a long name/handle stays on one line.
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerLeft,
+                          child: Text(app.me.name.split(' ').first,
+                              maxLines: 1, style: text.displayMedium),
+                        ),
                       ],
                     ),
                   ),

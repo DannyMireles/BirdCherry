@@ -109,8 +109,7 @@ class _BirdDetailScreenState extends State<BirdDetailScreen> {
       RarityChip(rarity: bird.rarity),
       if (bird.size.isNotEmpty) _factPill(Icons.straighten_rounded, bird.size),
       if (bird.habitat.isNotEmpty) _factPill(Icons.forest_outlined, bird.habitat),
-      if (bird.regions.isNotEmpty)
-        _factPill(Icons.public, bird.regions.map((r) => r.label).join(' · ')),
+      for (final r in bird.regions) _factPill(Icons.public, r.label),
       if (bird.regions.isEmpty && !bird.curated)
         _factPill(Icons.menu_book_rounded, 'eBird species'),
     ];
@@ -137,9 +136,51 @@ class _BirdDetailScreenState extends State<BirdDetailScreen> {
               ),
             ),
             flexibleSpace: FlexibleSpaceBar(
-              background: Hero(
-                tag: 'bird-image-${bird.id}',
-                child: BirdImage(bird: bird, borderRadius: BorderRadius.zero),
+              background: GestureDetector(
+                onTap: () {
+                  Haptic.tap();
+                  Navigator.of(context).push(MaterialPageRoute(
+                    fullscreenDialog: true,
+                    builder: (_) => _BirdPhotoViewer(bird: bird),
+                  ));
+                },
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    Hero(
+                      tag: 'bird-image-${bird.id}',
+                      child:
+                          BirdImage(bird: bird, borderRadius: BorderRadius.zero),
+                    ),
+                    Positioned(
+                      right: 12,
+                      bottom: 12,
+                      child: IgnorePointer(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.45),
+                            borderRadius: BorderRadius.circular(99),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.zoom_out_map_rounded,
+                                  size: 14, color: Colors.white),
+                              SizedBox(width: 5),
+                              Text('Tap to zoom',
+                                  style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600)),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -352,19 +393,82 @@ class _BirdDetailScreenState extends State<BirdDetailScreen> {
   }
 
   Widget _factPill(IconData icon, String label) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: BcColors.card,
-        borderRadius: BorderRadius.circular(99),
-        border: Border.all(color: BcColors.line),
+    return ConstrainedBox(
+      // Never let a single long pill run past the screen edge.
+      constraints:
+          BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width - 40),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: BcColors.card,
+          borderRadius: BorderRadius.circular(99),
+          border: Border.all(color: BcColors.line),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: BcColors.inkSoft),
+            const SizedBox(width: 5),
+            Flexible(
+              child: Text(label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall),
+            ),
+          ],
+        ),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
+    );
+  }
+}
+
+/// Full-screen, pinch-to-zoom view of a bird photo. Shares the Hero tag with
+/// the detail header so it zooms open and back smoothly. Tap anywhere to close.
+class _BirdPhotoViewer extends StatelessWidget {
+  const _BirdPhotoViewer({required this.bird});
+
+  final Bird bird;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Stack(
         children: [
-          Icon(icon, size: 14, color: BcColors.inkSoft),
-          const SizedBox(width: 5),
-          Text(label, style: Theme.of(context).textTheme.bodySmall),
+          Positioned.fill(
+            child: GestureDetector(
+              onTap: () => Navigator.of(context).pop(),
+              child: InteractiveViewer(
+                minScale: 1,
+                maxScale: 5,
+                child: Hero(
+                  tag: 'bird-image-${bird.id}',
+                  child:
+                      BirdImage(bird: bird, borderRadius: BorderRadius.zero),
+                ),
+              ),
+            ),
+          ),
+          SafeArea(
+            child: Align(
+              alignment: Alignment.topRight,
+              child: Padding(
+                padding: const EdgeInsets.all(8),
+                child: Material(
+                  color: Colors.white.withValues(alpha: 0.85),
+                  shape: const CircleBorder(),
+                  child: IconButton(
+                    icon: const Icon(Icons.close_rounded),
+                    tooltip: 'Close',
+                    onPressed: () {
+                      Haptic.tick();
+                      Navigator.of(context).pop();
+                    },
+                  ),
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );

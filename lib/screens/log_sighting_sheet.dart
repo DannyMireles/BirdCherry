@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -327,11 +329,138 @@ class _LogSheetState extends State<_LogSheet> {
     // with the pop, but the navigator's context lives on for the dialog.
     final navigator = Navigator.of(context);
     navigator.pop();
-    showDialog<void>(
+    // Full-screen overlay so confetti can rain behind the centered card.
+    showGeneralDialog<void>(
       context: navigator.context,
-      builder: (_) => _CelebrationDialog(reward: reward),
+      barrierDismissible: true,
+      barrierLabel: 'Sighting logged',
+      barrierColor: Colors.black54,
+      transitionDuration: const Duration(milliseconds: 220),
+      pageBuilder: (_, __, ___) => Stack(
+        children: [
+          const Positioned.fill(child: IgnorePointer(child: _Confetti())),
+          _CelebrationDialog(reward: reward),
+        ],
+      ),
     );
   }
+}
+
+/// A short, self-contained confetti burst — colored paper falling and spinning.
+/// Hand-rolled so we don't pull in a package; runs once then settles.
+class _Confetti extends StatefulWidget {
+  const _Confetti();
+
+  @override
+  State<_Confetti> createState() => _ConfettiState();
+}
+
+class _ConfettiState extends State<_Confetti>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 2400),
+  )..forward();
+
+  late final List<_Particle> _pieces = _build();
+
+  static const _colors = [
+    BcColors.cherry,
+    BcColors.gold,
+    BcColors.leaf,
+    Color(0xFF4F9DDE),
+    Color(0xFFE07A5F),
+  ];
+
+  List<_Particle> _build() {
+    final rnd = Random(7);
+    return List.generate(90, (i) {
+      return _Particle(
+        startX: rnd.nextDouble(), // fraction of width
+        delay: rnd.nextDouble() * 0.25,
+        drift: (rnd.nextDouble() - 0.5) * 0.4,
+        size: 6 + rnd.nextDouble() * 7,
+        color: _colors[i % _colors.length],
+        spin: (rnd.nextDouble() - 0.5) * 12,
+        phase: rnd.nextDouble() * pi,
+      );
+    });
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _c,
+      builder: (context, _) => CustomPaint(
+        size: Size.infinite,
+        painter: _ConfettiPainter(_pieces, _c.value),
+      ),
+    );
+  }
+}
+
+class _Particle {
+  const _Particle({
+    required this.startX,
+    required this.delay,
+    required this.drift,
+    required this.size,
+    required this.color,
+    required this.spin,
+    required this.phase,
+  });
+
+  final double startX; // 0..1 across width
+  final double delay; // 0..1 fraction before it starts falling
+  final double drift; // horizontal drift as a fraction of width
+  final double size;
+  final Color color;
+  final double spin; // radians/sec-ish
+  final double phase; // flutter sway offset
+}
+
+class _ConfettiPainter extends CustomPainter {
+  _ConfettiPainter(this.pieces, this.t);
+
+  final List<_Particle> pieces;
+  final double t; // 0..1
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint();
+    for (final p in pieces) {
+      final local = ((t - p.delay) / (1 - p.delay)).clamp(0.0, 1.0);
+      if (local <= 0) continue;
+      // Fall from above the top edge to past the bottom, with a little sway.
+      final y = (-0.1 + local * 1.25) * size.height;
+      final sway = sin(local * pi * 3 + p.phase) * 0.03;
+      final x = (p.startX + p.drift * local + sway) * size.width;
+      final opacity = (1 - local).clamp(0.0, 1.0);
+      paint.color = p.color.withValues(alpha: opacity);
+
+      canvas.save();
+      canvas.translate(x, y);
+      canvas.rotate(p.phase + local * p.spin);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromCenter(
+              center: Offset.zero, width: p.size, height: p.size * 0.6),
+          const Radius.circular(1.5),
+        ),
+        paint,
+      );
+      canvas.restore();
+    }
+  }
+
+  @override
+  bool shouldRepaint(_ConfettiPainter old) => old.t != t;
 }
 
 /// The reward moment: points, lifer status, and any badges just unlocked.
