@@ -68,9 +68,16 @@ class XenoCantoService {
 
   Future<BirdRecording?> _fetch(String scientificName) async {
     try {
+      // v3 only accepts tag-based queries: gen:<genus> sp:<species>.
+      final parts = scientificName.trim().split(RegExp(r'\s+'));
+      final genus = parts.isNotEmpty ? parts[0] : '';
+      final species = parts.length > 1 ? parts[1] : '';
+      if (genus.isEmpty) return null;
+      final query = species.isEmpty
+          ? 'gen:$genus grp:birds'
+          : 'gen:$genus sp:$species grp:birds';
       final uri = Uri.https(_host, '/api/3/recordings', {
-        // Scientific name + restrict to birds; ask for higher quality first.
-        'query': '$scientificName grp:birds',
+        'query': query,
         'per_page': '20',
         'key': AppConfig.xenoCantoApiKey,
       });
