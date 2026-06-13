@@ -76,7 +76,9 @@ class StaticBirdRepository implements BirdRepository {
 }
 
 class StaticSightingRepository implements SightingRepository {
-  StaticSightingRepository() : _sightings = Seed.sightings();
+  /// [sightings] defaults to the (empty) seed; tests inject sample data.
+  StaticSightingRepository({List<Sighting>? sightings})
+      : _sightings = List.of(sightings ?? Seed.sightings());
 
   final List<Sighting> _sightings;
 
@@ -138,10 +140,14 @@ class DemoAuthRepository implements AuthRepository {
 }
 
 class StaticSocialRepository implements SocialRepository {
-  StaticSocialRepository()
-      : _friends = List.of(Seed.friends),
-        _requests = List.of(Seed.friendRequests),
-        _suggestions = List.of(Seed.discoverable);
+  /// All three lists default to the (empty) seed; tests inject sample data.
+  StaticSocialRepository({
+    List<AppUser>? friends,
+    List<AppUser>? requests,
+    List<AppUser>? suggestions,
+  })  : _friends = List.of(friends ?? Seed.friends),
+        _requests = List.of(requests ?? Seed.friendRequests),
+        _suggestions = List.of(suggestions ?? Seed.discoverable);
 
   final List<AppUser> _friends;
   final List<AppUser> _requests;

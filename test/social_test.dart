@@ -9,11 +9,19 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'support/sample_data.dart';
+
 Future<AppState> _signedIn() async {
+  // Seed ships empty; inject the sample social graph so the friend/activity
+  // tests have data to act on.
   final state = AppState(
     birdRepo: StaticBirdRepository(),
-    sightingRepo: StaticSightingRepository(),
-    socialRepo: StaticSocialRepository(),
+    sightingRepo: StaticSightingRepository(sightings: sampleSightings()),
+    socialRepo: StaticSocialRepository(
+      friends: sampleFriends,
+      requests: sampleRequests,
+      suggestions: sampleSuggestions,
+    ),
     authRepo: DemoAuthRepository(),
   );
   await state.bootstrap();

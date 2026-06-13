@@ -5,11 +5,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'support/sample_data.dart';
+
 Future<AppState> _loadedState() async {
+  // Production seed is empty now, so inject the sample social graph + sightings
+  // to exercise gamification and the populated UI.
   final state = AppState(
     birdRepo: StaticBirdRepository(),
-    sightingRepo: StaticSightingRepository(),
-    socialRepo: StaticSocialRepository(),
+    sightingRepo: StaticSightingRepository(sightings: sampleSightings()),
+    socialRepo: StaticSocialRepository(
+      friends: sampleFriends,
+      requests: sampleRequests,
+      suggestions: sampleSuggestions,
+    ),
     authRepo: DemoAuthRepository(),
   );
   await state.bootstrap(); // marks auth checked (starts signed out)
