@@ -187,9 +187,14 @@ class _SignInSheetState extends State<_SignInSheet> {
       await app.sendMagicLink(email);
       if (mounted) setState(() => _linkSent = true);
     } catch (e) {
+      final s = e.toString().toLowerCase();
+      final rateLimited = s.contains('rate') ||
+          s.contains('429') ||
+          s.contains('over_email');
       if (mounted) {
-        setState(() =>
-            _error = 'Couldn’t send the link. Check the email and try again.');
+        setState(() => _error = rateLimited
+            ? 'Too many emails right now — wait a minute, then try again.'
+            : 'Couldn’t send the link. Check the email and try again.');
       }
     }
   }
