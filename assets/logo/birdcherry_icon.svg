@@ -1,0 +1,54 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FBF8F2"/>
+      <stop offset="1" stop-color="#E8EFE3"/>
+    </linearGradient>
+  </defs>
+
+  <!-- background -->
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+
+  <!-- mark, scaled up for icon presence -->
+  <g transform="translate(512 524) scale(1.13) translate(-512 -524)">
+
+  <!-- ground shadow -->
+  <ellipse cx="500" cy="860" rx="240" ry="34" fill="#16211B" opacity="0.07"/>
+
+  <!-- stems -->
+  <path d="M560 250 C 520 330 500 360 492 392" fill="none" stroke="#6B7A3D" stroke-width="20" stroke-linecap="round"/>
+  <path d="M560 250 C 650 305 740 340 772 392" fill="none" stroke="#6B7A3D" stroke-width="20" stroke-linecap="round"/>
+
+  <!-- leaf -->
+  <path d="M560 250 C 540 150 640 120 712 150 C 690 250 612 268 560 250 Z" fill="#3E7D54"/>
+  <path d="M584 232 C 628 198 672 178 700 168" fill="none" stroke="#2F5D45" stroke-width="9" stroke-linecap="round" opacity="0.8"/>
+
+  <!-- small cherry -->
+  <circle cx="772" cy="486" r="96" fill="#C9473F"/>
+  <circle cx="742" cy="456" r="26" fill="#FFFFFF" opacity="0.28"/>
+
+  <!-- big cherry = bird body -->
+  <circle cx="476" cy="588" r="248" fill="#C9473F"/>
+
+  <!-- cream belly -->
+  <path d="M470 596 C 366 586 304 640 312 718 C 319 790 388 824 462 814 C 530 806 544 700 514 624 C 502 604 490 596 470 596 Z" fill="#FAF3E7"/>
+
+  <!-- wing -->
+  <path d="M556 532 C 686 540 700 652 614 706 C 552 694 520 606 556 532 Z" fill="#A33630"/>
+
+  <!-- beak (faces left) -->
+  <path d="M250 566 L 168 602 L 250 640 Z" fill="#E0A33C"/>
+
+  <!-- eye -->
+  <circle cx="372" cy="544" r="50" fill="#FAF3E7"/>
+  <circle cx="358" cy="548" r="27" fill="#16211B"/>
+  <circle cx="368" cy="538" r="9" fill="#FFFFFF"/>
+
+  <!-- feet -->
+  <g stroke="#C7842C" stroke-width="15" stroke-linecap="round" fill="none">
+    <path d="M430 812 L 430 862 M408 862 L 452 862"/>
+    <path d="M530 812 L 530 862 M508 862 L 552 862"/>
+  </g>
+
+  </g>
+</svg>
