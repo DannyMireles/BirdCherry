@@ -39,12 +39,8 @@ AppUser _userFromProfile(Map<String, dynamic> row, {bool isMe = false}) {
 }
 
 class SupabaseAuthRepository implements AuthRepository {
-  /// The app's deep-link scheme; must match the native URL types and the
-  /// Supabase redirect allowlist.
-  static const redirectUrl = 'birdcherry://login-callback';
-
   @override
-  bool get usesMagicLink => true;
+  bool get usesEmailCode => true;
 
   @override
   Stream<bool> get authChanges =>
@@ -73,17 +69,27 @@ class SupabaseAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<void> sendMagicLink(String email) async {
+  Future<void> sendCode(String email) async {
+    // No emailRedirectTo: we want the 6-digit code, not a clickable link. The
+    // email template renders {{ .Token }} (configured in Supabase auth).
     await _db.auth.signInWithOtp(
       email: email,
-      emailRedirectTo: redirectUrl,
       shouldCreateUser: true,
     );
   }
 
   @override
+  Future<void> verifyCode(String email, String code) async {
+    await _db.auth.verifyOTP(
+      email: email,
+      token: code.trim(),
+      type: OtpType.email,
+    );
+  }
+
+  @override
   Future<AppUser> signIn({String? email}) =>
-      throw UnsupportedError('Supabase auth uses a magic link');
+      throw UnsupportedError('Supabase auth uses an emailed code');
 
   @override
   Future<void> signOut() => _db.auth.signOut();

@@ -154,13 +154,13 @@ class AppState extends ChangeNotifier {
   /// `--dart-define=BC_DEMO_AUTOLOGIN=true` skips both for demos/screenshots.
   static const _autoLogin = bool.fromEnvironment('BC_DEMO_AUTOLOGIN');
 
-  /// Real (Supabase) auth signs in via a magic link; demo signs in instantly.
-  bool get usesMagicLink => _authRepo.usesMagicLink;
+  /// Real (Supabase) auth signs in with an emailed code; demo signs in instantly.
+  bool get usesEmailCode => _authRepo.usesEmailCode;
 
   StreamSubscription<bool>? _authSub;
 
   Future<void> bootstrap() async {
-    // React to a magic link being opened (session appears asynchronously).
+    // React to the session appearing (code verified) or being restored.
     _authSub ??= _authRepo.authChanges.listen((signedIn) {
       if (signedIn && !_signedIn) {
         load();
@@ -171,7 +171,7 @@ class AppState extends ChangeNotifier {
       }
     });
 
-    if (_autoLogin && !_authRepo.usesMagicLink) {
+    if (_autoLogin && !_authRepo.usesEmailCode) {
       await signIn();
       _authChecked = true;
       notifyListeners();
@@ -193,7 +193,7 @@ class AppState extends ChangeNotifier {
   Future<bool> unlock() async {
     final ok = await Biometric.authenticate(reason: 'Unlock BirdCherry');
     if (!ok) return false;
-    if (_authRepo.usesMagicLink) {
+    if (_authRepo.usesEmailCode) {
       // Real backend: the session is already restored from storage; just load.
       _signingIn = true;
       notifyListeners();
@@ -207,9 +207,25 @@ class AppState extends ChangeNotifier {
     return true;
   }
 
-  /// Email a magic link. The session arrives via the auth-change subscription
-  /// once the user taps the link.
-  Future<void> sendMagicLink(String email) => _authRepo.sendMagicLink(email);
+  /// Email a 6-digit sign-in code to [email].
+  Future<void> sendCode(String email) => _authRepo.sendCode(email);
+
+  /// Verify the emailed [code]. On success the session is created; the
+  /// auth-change subscription loads the app. Rethrows on a wrong/expired code.
+  Future<void> verifyCode(String email, String code) async {
+    _signingIn = true;
+    notifyListeners();
+    try {
+      await _authRepo.verifyCode(email, code);
+      // The authChanges listener triggers load(); ensure we're loaded before
+      // returning so the UI transitions cleanly out of the sign-in sheet.
+      if (!_loaded) await load();
+      _locked = false;
+    } finally {
+      _signingIn = false;
+      notifyListeners();
+    }
+  }
 
   Future<void> signIn({String? email}) async {
     _signingIn = true;

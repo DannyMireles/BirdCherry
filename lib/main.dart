@@ -25,12 +25,9 @@ Future<void> main() async {
       // Accepts either a legacy anon JWT or a new publishable key.
       // ignore: deprecated_member_use
       anonKey: AppConfig.supabaseAnonKey,
-      // Implicit flow: the magic-link redirect carries the session in the URL
-      // fragment, which our birdcherry:// deep link delivers straight to the
-      // app — simplest and most reliable for same-device sign-in.
-      authOptions: const FlutterAuthClientOptions(
-        authFlowType: AuthFlowType.implicit,
-      ),
+      // Auth is an emailed 6-digit code verified in-app (verifyOTP) — no deep
+      // link or redirect needed. supabase_flutter persists the session and
+      // auto-refreshes it, so returning users aren't asked for a new code.
     );
     appState = AppState(
       birdRepo: StaticBirdRepository(), // curated set; eBird adds the rest

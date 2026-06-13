@@ -20,8 +20,8 @@ abstract interface class SightingRepository {
 }
 
 /// Authentication. The demo implementation fakes a session persisted on the
-/// device; the Supabase implementation wraps `supabase.auth` with a magic
-/// link (free-tier friendly — the default email already sends one).
+/// device; the Supabase implementation wraps `supabase.auth` with a one-time
+/// email code (no domain or deep link required — the user types the code).
 abstract interface class AuthRepository {
   /// The active user, or null when signed out.
   Future<AppUser?> currentUser();
@@ -29,18 +29,22 @@ abstract interface class AuthRepository {
   /// Whether a saved session exists from a previous launch (→ offer Face ID).
   Future<bool> hasSavedSession();
 
-  /// Real auth signs in via an emailed magic link (vs. immediate demo sign-in).
-  bool get usesMagicLink;
+  /// Real auth signs in with an emailed one-time code (vs. immediate demo
+  /// sign-in). Drives whether the onboarding sheet shows the code-entry step.
+  bool get usesEmailCode;
 
-  /// Immediate demo sign-in (used only when [usesMagicLink] is false).
+  /// Immediate demo sign-in (used only when [usesEmailCode] is false).
   Future<AppUser> signIn({String? email});
 
-  /// Email a magic link (used only when [usesMagicLink] is true). The session
-  /// arrives asynchronously via [authChanges] once the user taps the link.
-  Future<void> sendMagicLink(String email);
+  /// Email a 6-digit sign-in code (used only when [usesEmailCode] is true).
+  Future<void> sendCode(String email);
 
-  /// Emits true when a session appears (e.g. after a magic link is opened),
-  /// false on sign-out. Empty for the demo repo.
+  /// Verify the emailed code. On success a session is created and [authChanges]
+  /// fires; throws if the code is wrong or expired.
+  Future<void> verifyCode(String email, String code);
+
+  /// Emits true when a session appears (e.g. after a code is verified or a
+  /// saved session is restored), false on sign-out. Empty for the demo repo.
   Stream<bool> get authChanges;
 
   Future<void> signOut();
@@ -100,7 +104,7 @@ class DemoAuthRepository implements AuthRepository {
   }
 
   @override
-  bool get usesMagicLink => false;
+  bool get usesEmailCode => false;
 
   @override
   Stream<bool> get authChanges => const Stream.empty();
@@ -121,7 +125,10 @@ class DemoAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<void> sendMagicLink(String email) => signIn(email: email);
+  Future<void> sendCode(String email) async {/* demo: no email step */}
+
+  @override
+  Future<void> verifyCode(String email, String code) => signIn(email: email);
 
   @override
   Future<void> signOut() async {

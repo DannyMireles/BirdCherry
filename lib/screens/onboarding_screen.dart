@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../state/app_state.dart';
 import '../theme.dart';
 import '../widgets/logo.dart';
 
-/// A short intro carousel followed by a sign-in sheet. Auth is a demo today
-/// (any credentials work and sign you in as the sample profile); the flow and
-/// screens are real so wiring Supabase auth later is a drop-in.
+/// A short intro carousel followed by a sign-in sheet. With Supabase configured
+/// it emails a 6-digit code and shows a code-entry step (iOS auto-fills it);
+/// in demo mode any email signs you straight in as the sample profile.
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
 
@@ -161,40 +162,70 @@ class _SignInSheet extends StatefulWidget {
 
 class _SignInSheetState extends State<_SignInSheet> {
   final _emailController = TextEditingController();
-  bool _linkSent = false; // real auth: we emailed a magic link
+  final _codeController = TextEditingController();
+  bool _codeSent = false; // real auth: we emailed a 6-digit code
   String? _error;
 
   @override
   void dispose() {
     _emailController.dispose();
+    _codeController.dispose();
     super.dispose();
   }
 
-  /// Demo: immediate sign-in. Real: email a magic link, then wait for the tap.
-  Future<void> _continue() async {
+  bool _looksLikeEmail(String s) =>
+      RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(s);
+
+  /// Demo: immediate sign-in. Real: email a 6-digit code, then show the
+  /// code-entry step.
+  Future<void> _sendOrSignIn() async {
     Haptic.confirm();
     final app = context.read<AppState>();
     final navigator = Navigator.of(context);
     final email = _emailController.text.trim();
     setState(() => _error = null);
 
-    if (!app.usesMagicLink) {
+    if (!app.usesEmailCode) {
       await app.signIn(email: email);
       if (navigator.canPop()) navigator.pop();
       return;
     }
+    if (!_looksLikeEmail(email)) {
+      setState(() => _error = 'Enter a valid email address.');
+      return;
+    }
     try {
-      await app.sendMagicLink(email);
-      if (mounted) setState(() => _linkSent = true);
+      await app.sendCode(email);
+      if (mounted) setState(() => _codeSent = true);
     } catch (e) {
       final s = e.toString().toLowerCase();
-      final rateLimited = s.contains('rate') ||
-          s.contains('429') ||
-          s.contains('over_email');
+      final rateLimited =
+          s.contains('rate') || s.contains('429') || s.contains('over_email');
       if (mounted) {
         setState(() => _error = rateLimited
             ? 'Too many emails right now — wait a minute, then try again.'
-            : 'Couldn’t send the link. Check the email and try again.');
+            : 'Couldn’t send the code. Check the email and try again.');
+      }
+    }
+  }
+
+  /// Verify the typed/auto-filled code; on success dismiss the sheet so the
+  /// app (now signed in) shows through.
+  Future<void> _verify() async {
+    final app = context.read<AppState>();
+    final navigator = Navigator.of(context);
+    final email = _emailController.text.trim();
+    final code = _codeController.text.trim();
+    if (code.length < 6 || app.signingIn) return;
+    setState(() => _error = null);
+    Haptic.confirm();
+    try {
+      await app.verifyCode(email, code);
+      if (navigator.canPop()) navigator.pop();
+    } catch (e) {
+      if (mounted) {
+        setState(() => _error = 'That code didn’t work. Check it and try again.');
+        _codeController.clear();
       }
     }
   }
@@ -226,9 +257,9 @@ class _SignInSheetState extends State<_SignInSheet> {
             ),
             const SizedBox(height: 22),
 
-            if (_linkSent) ...[
-              // "Check your email" state — the app continues automatically
-              // once the link is tapped (handled by AppState's auth listener).
+            if (_codeSent) ...[
+              // Code-entry state — the field auto-fills from the email on iOS
+              // and auto-submits once six digits are present.
               Center(
                 child: Container(
                   width: 72,
@@ -242,23 +273,68 @@ class _SignInSheetState extends State<_SignInSheet> {
                 ),
               ),
               const SizedBox(height: 18),
-              Text('Check your email', style: text.displaySmall),
+              Text('Enter your code', style: text.displaySmall),
               const SizedBox(height: 6),
               Text(
-                'We sent a sign-in link to $email. Tap it on this device and '
-                'you’ll be signed in automatically.',
+                'We emailed a 6-digit code to $email. It expires in an hour.',
                 style: text.bodyMedium,
               ),
               const SizedBox(height: 18),
-              OutlinedButton(
-                onPressed: signingIn ? null : _continue,
-                child: const Text('Resend link'),
+              TextField(
+                controller: _codeController,
+                autofocus: true,
+                keyboardType: TextInputType.number,
+                textAlign: TextAlign.center,
+                autofillHints: const [AutofillHints.oneTimeCode],
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(6),
+                ],
+                style: text.displaySmall?.copyWith(
+                    letterSpacing: 12, fontWeight: FontWeight.w700),
+                decoration: const InputDecoration(
+                  counterText: '',
+                  hintText: '••••••',
+                ),
+                onChanged: (v) {
+                  if (_error != null) setState(() => _error = null);
+                  if (v.trim().length == 6) _verify();
+                },
+                onSubmitted: (_) => _verify(),
+              ),
+              if (_error != null) ...[
+                const SizedBox(height: 8),
+                Text(_error!,
+                    style: text.bodySmall?.copyWith(color: BcColors.cherry),
+                    textAlign: TextAlign.center),
+              ],
+              const SizedBox(height: 14),
+              FilledButton(
+                style:
+                    FilledButton.styleFrom(backgroundColor: BcColors.cherry),
+                onPressed: signingIn ? null : _verify,
+                child: signingIn
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Text('Verify & sign in'),
               ),
               const SizedBox(height: 4),
+              OutlinedButton(
+                onPressed: signingIn ? null : _sendOrSignIn,
+                child: const Text('Resend code'),
+              ),
               TextButton(
                 onPressed: signingIn
                     ? null
-                    : () => setState(() => _linkSent = false),
+                    : () => setState(() {
+                          _codeSent = false;
+                          _codeController.clear();
+                          _error = null;
+                        }),
                 child: const Text('Use a different email'),
               ),
             ] else ...[
@@ -270,7 +346,12 @@ class _SignInSheetState extends State<_SignInSheet> {
                 controller: _emailController,
                 keyboardType: TextInputType.emailAddress,
                 autocorrect: false,
-                onChanged: (_) => setState(() {}),
+                autofillHints: const [AutofillHints.email],
+                textInputAction: TextInputAction.go,
+                onChanged: (_) {
+                  if (_error != null) setState(() => _error = null);
+                },
+                onSubmitted: (_) => _sendOrSignIn(),
                 decoration: const InputDecoration(
                   hintText: 'you@example.com',
                   prefixIcon:
@@ -286,7 +367,7 @@ class _SignInSheetState extends State<_SignInSheet> {
               FilledButton(
                 style:
                     FilledButton.styleFrom(backgroundColor: BcColors.cherry),
-                onPressed: signingIn ? null : _continue,
+                onPressed: signingIn ? null : _sendOrSignIn,
                 child: signingIn
                     ? const SizedBox(
                         height: 20,
@@ -294,14 +375,12 @@ class _SignInSheetState extends State<_SignInSheet> {
                         child: CircularProgressIndicator(
                             strokeWidth: 2, color: Colors.white),
                       )
-                    : Text(app.usesMagicLink
-                        ? 'Email me a sign-in link'
-                        : 'Continue'),
+                    : Text(app.usesEmailCode ? 'Email me a code' : 'Continue'),
               ),
               const SizedBox(height: 16),
               Text(
-                app.usesMagicLink
-                    ? 'No password — just tap the link we email you.'
+                app.usesEmailCode
+                    ? 'No password — we’ll email you a 6-digit code.'
                     : 'Demo mode — any email signs you in as the sample birder.',
                 style: text.bodySmall,
                 textAlign: TextAlign.center,
