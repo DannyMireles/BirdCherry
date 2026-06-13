@@ -20,7 +20,8 @@ abstract interface class SightingRepository {
 }
 
 /// Authentication. The demo implementation fakes a session persisted on the
-/// device; the Supabase implementation wraps `supabase.auth`.
+/// device; the Supabase implementation wraps `supabase.auth` with a magic
+/// link (free-tier friendly — the default email already sends one).
 abstract interface class AuthRepository {
   /// The active user, or null when signed out.
   Future<AppUser?> currentUser();
@@ -28,18 +29,19 @@ abstract interface class AuthRepository {
   /// Whether a saved session exists from a previous launch (→ offer Face ID).
   Future<bool> hasSavedSession();
 
-  /// Whether sign-in needs an emailed one-time code (real auth) vs. an
-  /// immediate demo sign-in.
-  bool get requiresOtp;
+  /// Real auth signs in via an emailed magic link (vs. immediate demo sign-in).
+  bool get usesMagicLink;
 
-  /// One-shot demo sign-in (used only when [requiresOtp] is false).
+  /// Immediate demo sign-in (used only when [usesMagicLink] is false).
   Future<AppUser> signIn({String? email});
 
-  /// Email a one-time login code (used only when [requiresOtp] is true).
-  Future<void> sendOtp(String email);
+  /// Email a magic link (used only when [usesMagicLink] is true). The session
+  /// arrives asynchronously via [authChanges] once the user taps the link.
+  Future<void> sendMagicLink(String email);
 
-  /// Verify the emailed code and complete sign-in.
-  Future<AppUser> verifyOtp(String email, String token);
+  /// Emits true when a session appears (e.g. after a magic link is opened),
+  /// false on sign-out. Empty for the demo repo.
+  Stream<bool> get authChanges;
 
   Future<void> signOut();
 }
@@ -98,7 +100,10 @@ class DemoAuthRepository implements AuthRepository {
   }
 
   @override
-  bool get requiresOtp => false;
+  bool get usesMagicLink => false;
+
+  @override
+  Stream<bool> get authChanges => const Stream.empty();
 
   @override
   Future<AppUser?> currentUser() async => _user;
@@ -116,10 +121,7 @@ class DemoAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<void> sendOtp(String email) async {}
-
-  @override
-  Future<AppUser> verifyOtp(String email, String token) => signIn(email: email);
+  Future<void> sendMagicLink(String email) => signIn(email: email);
 
   @override
   Future<void> signOut() async {

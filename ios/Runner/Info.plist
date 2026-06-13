@@ -47,5 +47,18 @@
 	<true/>
 	<key>NSFaceIDUsageDescription</key>
 	<string>BirdCherry uses Face ID to keep you signed in securely.</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>com.selerim.birdcherry</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>birdcherry</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

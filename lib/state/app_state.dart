@@ -154,11 +154,24 @@ class AppState extends ChangeNotifier {
   /// `--dart-define=BC_DEMO_AUTOLOGIN=true` skips both for demos/screenshots.
   static const _autoLogin = bool.fromEnvironment('BC_DEMO_AUTOLOGIN');
 
-  /// Real (Supabase) auth needs an emailed code; demo signs in immediately.
-  bool get requiresOtp => _authRepo.requiresOtp;
+  /// Real (Supabase) auth signs in via a magic link; demo signs in instantly.
+  bool get usesMagicLink => _authRepo.usesMagicLink;
+
+  StreamSubscription<bool>? _authSub;
 
   Future<void> bootstrap() async {
-    if (_autoLogin && !_authRepo.requiresOtp) {
+    // React to a magic link being opened (session appears asynchronously).
+    _authSub ??= _authRepo.authChanges.listen((signedIn) {
+      if (signedIn && !_signedIn) {
+        load();
+      } else if (!signedIn && _signedIn) {
+        _signedIn = false;
+        _loaded = false;
+        notifyListeners();
+      }
+    });
+
+    if (_autoLogin && !_authRepo.usesMagicLink) {
       await signIn();
       _authChecked = true;
       notifyListeners();
@@ -170,11 +183,17 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  @override
+  void dispose() {
+    _authSub?.cancel();
+    super.dispose();
+  }
+
   /// Restore a saved session after a successful biometric unlock.
   Future<bool> unlock() async {
     final ok = await Biometric.authenticate(reason: 'Unlock BirdCherry');
     if (!ok) return false;
-    if (_authRepo.requiresOtp) {
+    if (_authRepo.usesMagicLink) {
       // Real backend: the session is already restored from storage; just load.
       _signingIn = true;
       notifyListeners();
@@ -188,19 +207,9 @@ class AppState extends ChangeNotifier {
     return true;
   }
 
-  /// Email a one-time login code (real auth).
-  Future<void> sendOtp(String email) => _authRepo.sendOtp(email);
-
-  /// Verify the emailed code, then load the session.
-  Future<void> verifyOtp(String email, String token) async {
-    _signingIn = true;
-    notifyListeners();
-    await _authRepo.verifyOtp(email, token);
-    await load();
-    _signingIn = false;
-    _locked = false;
-    notifyListeners();
-  }
+  /// Email a magic link. The session arrives via the auth-change subscription
+  /// once the user taps the link.
+  Future<void> sendMagicLink(String email) => _authRepo.sendMagicLink(email);
 
   Future<void> signIn({String? email}) async {
     _signingIn = true;

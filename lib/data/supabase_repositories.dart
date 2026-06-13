@@ -39,8 +39,16 @@ AppUser _userFromProfile(Map<String, dynamic> row, {bool isMe = false}) {
 }
 
 class SupabaseAuthRepository implements AuthRepository {
+  /// The app's deep-link scheme; must match the native URL types and the
+  /// Supabase redirect allowlist.
+  static const redirectUrl = 'birdcherry://login-callback';
+
   @override
-  bool get requiresOtp => true;
+  bool get usesMagicLink => true;
+
+  @override
+  Stream<bool> get authChanges =>
+      _db.auth.onAuthStateChange.map((e) => e.session != null);
 
   @override
   Future<bool> hasSavedSession() async => _db.auth.currentSession != null;
@@ -65,19 +73,17 @@ class SupabaseAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<void> sendOtp(String email) async {
-    await _db.auth.signInWithOtp(email: email, shouldCreateUser: true);
-  }
-
-  @override
-  Future<AppUser> verifyOtp(String email, String token) async {
-    await _db.auth.verifyOTP(email: email, token: token, type: OtpType.email);
-    return (await currentUser())!;
+  Future<void> sendMagicLink(String email) async {
+    await _db.auth.signInWithOtp(
+      email: email,
+      emailRedirectTo: redirectUrl,
+      shouldCreateUser: true,
+    );
   }
 
   @override
   Future<AppUser> signIn({String? email}) =>
-      throw UnsupportedError('Supabase auth uses sendOtp/verifyOtp');
+      throw UnsupportedError('Supabase auth uses a magic link');
 
   @override
   Future<void> signOut() => _db.auth.signOut();

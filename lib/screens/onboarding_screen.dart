@@ -161,18 +161,16 @@ class _SignInSheet extends StatefulWidget {
 
 class _SignInSheetState extends State<_SignInSheet> {
   final _emailController = TextEditingController();
-  final _codeController = TextEditingController();
-  bool _codeSent = false; // real auth only: we emailed a one-time code
+  bool _linkSent = false; // real auth: we emailed a magic link
   String? _error;
 
   @override
   void dispose() {
     _emailController.dispose();
-    _codeController.dispose();
     super.dispose();
   }
 
-  /// Demo: immediate sign-in. Real: send an email code, then reveal the field.
+  /// Demo: immediate sign-in. Real: email a magic link, then wait for the tap.
   Future<void> _continue() async {
     Haptic.confirm();
     final app = context.read<AppState>();
@@ -180,30 +178,19 @@ class _SignInSheetState extends State<_SignInSheet> {
     final email = _emailController.text.trim();
     setState(() => _error = null);
 
-    if (!app.requiresOtp) {
+    if (!app.usesMagicLink) {
       await app.signIn(email: email);
       if (navigator.canPop()) navigator.pop();
       return;
     }
     try {
-      await app.sendOtp(email);
-      if (mounted) setState(() => _codeSent = true);
+      await app.sendMagicLink(email);
+      if (mounted) setState(() => _linkSent = true);
     } catch (e) {
-      if (mounted) setState(() => _error = 'Couldn’t send a code. Check the email and try again.');
-    }
-  }
-
-  Future<void> _verify() async {
-    Haptic.confirm();
-    final app = context.read<AppState>();
-    final navigator = Navigator.of(context);
-    setState(() => _error = null);
-    try {
-      await app.verifyOtp(_emailController.text.trim(), _codeController.text.trim());
-      // Root Consumer swaps to the app on success; close the sheet.
-      if (navigator.canPop()) navigator.pop();
-    } catch (e) {
-      if (mounted) setState(() => _error = 'That code didn’t match. Try again.');
+      if (mounted) {
+        setState(() =>
+            _error = 'Couldn’t send the link. Check the email and try again.');
+      }
     }
   }
 
@@ -212,6 +199,8 @@ class _SignInSheetState extends State<_SignInSheet> {
     final text = Theme.of(context).textTheme;
     final app = context.watch<AppState>();
     final signingIn = app.signingIn;
+    final email = _emailController.text.trim();
+
     return Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
       child: Padding(
@@ -231,92 +220,88 @@ class _SignInSheetState extends State<_SignInSheet> {
               ),
             ),
             const SizedBox(height: 22),
-            Text(_codeSent ? 'Check your email' : 'Welcome',
-                style: text.displaySmall),
-            const SizedBox(height: 6),
-            Text(
-              _codeSent
-                  ? 'We sent a one-time code to ${_emailController.text.trim()}.'
-                  : 'Sign in to start your life list.',
-              style: text.bodyMedium,
-            ),
-            const SizedBox(height: 22),
-            if (!_codeSent)
+
+            if (_linkSent) ...[
+              // "Check your email" state — the app continues automatically
+              // once the link is tapped (handled by AppState's auth listener).
+              Center(
+                child: Container(
+                  width: 72,
+                  height: 72,
+                  decoration: BoxDecoration(
+                    color: BcColors.leaf.withValues(alpha: 0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.mark_email_read_outlined,
+                      size: 34, color: BcColors.leaf),
+                ),
+              ),
+              const SizedBox(height: 18),
+              Text('Check your email', style: text.displaySmall),
+              const SizedBox(height: 6),
+              Text(
+                'We sent a sign-in link to $email. Tap it on this device and '
+                'you’ll be signed in automatically.',
+                style: text.bodyMedium,
+              ),
+              const SizedBox(height: 18),
+              OutlinedButton(
+                onPressed: signingIn ? null : _continue,
+                child: const Text('Resend link'),
+              ),
+              const SizedBox(height: 4),
+              TextButton(
+                onPressed: signingIn
+                    ? null
+                    : () => setState(() => _linkSent = false),
+                child: const Text('Use a different email'),
+              ),
+            ] else ...[
+              Text('Welcome', style: text.displaySmall),
+              const SizedBox(height: 6),
+              Text('Sign in to start your life list.', style: text.bodyMedium),
+              const SizedBox(height: 22),
               TextField(
                 controller: _emailController,
                 keyboardType: TextInputType.emailAddress,
                 autocorrect: false,
+                onChanged: (_) => setState(() {}),
                 decoration: const InputDecoration(
                   hintText: 'you@example.com',
                   prefixIcon:
                       Icon(Icons.mail_outline_rounded, color: BcColors.muted),
                 ),
-              )
-            else
-              TextField(
-                controller: _codeController,
-                keyboardType: TextInputType.number,
-                autofocus: true,
-                decoration: const InputDecoration(
-                  hintText: '6-digit code',
-                  prefixIcon:
-                      Icon(Icons.password_rounded, color: BcColors.muted),
-                ),
               ),
-            if (_error != null) ...[
-              const SizedBox(height: 8),
-              Text(_error!,
-                  style: text.bodySmall?.copyWith(color: BcColors.cherry)),
-            ],
-            const SizedBox(height: 12),
-            FilledButton(
-              style: FilledButton.styleFrom(backgroundColor: BcColors.cherry),
-              onPressed: signingIn ? null : (_codeSent ? _verify : _continue),
-              child: signingIn
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(
-                          strokeWidth: 2, color: Colors.white),
-                    )
-                  : Text(_codeSent
-                      ? 'Verify & continue'
-                      : (app.requiresOtp ? 'Email me a code' : 'Continue')),
-            ),
-            if (_codeSent) ...[
-              const SizedBox(height: 4),
-              TextButton(
-                onPressed: signingIn
-                    ? null
-                    : () => setState(() {
-                          _codeSent = false;
-                          _codeController.clear();
-                        }),
-                child: const Text('Use a different email'),
-              ),
-            ],
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.face_rounded, size: 18, color: BcColors.muted),
-                const SizedBox(width: 8),
-                Flexible(
-                  child: Text(
-                    'We’ll remember you and offer Face ID next time.',
-                    style: text.bodySmall,
-                  ),
-                ),
+              if (_error != null) ...[
+                const SizedBox(height: 8),
+                Text(_error!,
+                    style: text.bodySmall?.copyWith(color: BcColors.cherry)),
               ],
-            ),
-            const SizedBox(height: 16),
-            Text(
-              app.requiresOtp
-                  ? 'We’ll email you a one-time code — no password to remember.'
-                  : 'Demo mode — any email signs you in as the sample birder. Real accounts arrive with Supabase auth.',
-              style: text.bodySmall,
-              textAlign: TextAlign.center,
-            ),
+              const SizedBox(height: 12),
+              FilledButton(
+                style:
+                    FilledButton.styleFrom(backgroundColor: BcColors.cherry),
+                onPressed: signingIn ? null : _continue,
+                child: signingIn
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white),
+                      )
+                    : Text(app.usesMagicLink
+                        ? 'Email me a sign-in link'
+                        : 'Continue'),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                app.usesMagicLink
+                    ? 'No password — just tap the link we email you.'
+                    : 'Demo mode — any email signs you in as the sample birder.',
+                style: text.bodySmall,
+                textAlign: TextAlign.center,
+              ),
+            ],
           ],
         ),
       ),
