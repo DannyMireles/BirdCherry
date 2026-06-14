@@ -39,6 +39,23 @@ AppUser _userFromProfile(Map<String, dynamic> row, {bool isMe = false}) {
 }
 
 class SupabaseAuthRepository implements AuthRepository {
+  // ---- App Store review account ----
+  // Apple's reviewer can't receive a real email code, so THIS one address skips
+  // the OTP email and signs in with a fixed password instead. It is an ordinary
+  // Supabase user with no special privileges — Row-Level Security applies to it
+  // exactly like any other account, so it only ever sees its own (empty) data.
+  // Real users are completely unaffected (any other email uses the normal OTP).
+  //
+  // Setup: create this user in Supabase (Authentication → Users → Add user) with
+  // the password below and "Auto Confirm User" checked. Give Apple the email +
+  // [reviewCode] in App Store Connect → App Review Information.
+  static const reviewEmail = 'review@discoverly.ai';
+  static const reviewCode = '123456';
+  static const _reviewPassword = 'BirdCherry-Review-2026!q7Kz';
+
+  bool _isReviewAccount(String email) =>
+      email.trim().toLowerCase() == reviewEmail;
+
   @override
   bool get usesEmailCode => true;
 
@@ -70,6 +87,8 @@ class SupabaseAuthRepository implements AuthRepository {
 
   @override
   Future<void> sendCode(String email) async {
+    // Review account: don't send an email — verifyCode signs in with a password.
+    if (_isReviewAccount(email)) return;
     // No emailRedirectTo: we want the 6-digit code, not a clickable link. The
     // email template renders {{ .Token }} (configured in Supabase auth).
     await _db.auth.signInWithOtp(
@@ -80,6 +99,18 @@ class SupabaseAuthRepository implements AuthRepository {
 
   @override
   Future<void> verifyCode(String email, String code) async {
+    // Review account: the fixed code maps to a password sign-in so Apple's
+    // reviewer can get in without a real inbox.
+    if (_isReviewAccount(email)) {
+      if (code.trim() != reviewCode) {
+        throw const AuthException('Invalid code. Please try again.');
+      }
+      await _db.auth.signInWithPassword(
+        email: reviewEmail,
+        password: _reviewPassword,
+      );
+      return;
+    }
     await _db.auth.verifyOTP(
       email: email,
       token: code.trim(),
